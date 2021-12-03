@@ -11,8 +11,42 @@
   },
   "analytics": [
     [
-      "get_data",
+      "get_region_oa",
       {
+      }
+    ],
+    [
+      "get_collaboration_oa",
+      {
+      }
+    ],
+    [
+      "get_sdgs_oa",
+      {
+      }
+    ],
+    [
+      "oa_regions_graph",
+      {
+        "depends": ["get_region_oa"]
+      }
+    ],
+    [
+      "collab_oa_graph",
+      {
+        "depends": ["get_collaboration_oa"]
+      }
+    ],
+    [
+      "oa_citations_graph",
+      {
+        "depends": ["get_region_oa"]
+      }
+    ],
+    [
+      "sdg_graph",
+      {
+        "depends": ["get_sdgs_oa"]
       }
     ]
   ],
