@@ -18,31 +18,70 @@
 import json
 from pathlib import Path
 import os
+from typing import Optional, Callable, Union
 
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from typing import Optional, Callable, Union
+
+from precipy.analytics_function import AnalyticsFunction
 
 from observatory.reports import report_utils
-from precipy.analytics_function import AnalyticsFunction
-from report_data_processing.sql import (
-    hello_world
-)
-# Insert applicable graphs once created
-# from report_graphs import (
-#     Alluvial, OverallCoverage, BarLine, ValueAddBar, ValueAddByCrossrefType, ValueAddByCrossrefTypeHorizontal,
-#     PlotlyTable
-# )
+from parameters import *
+from report_data_processing.sql import load_sql_to_string
 
-# Replace with applicable project name
-PROJECT_ID = 'coki-curtin-research-qualities'
+PROJECT_ID = 'coki-unesco'
 
-def get_data(af: AnalyticsFunction):
-    hello_world_query = pd.read_gbq(query=hello_world,
-                                 project_id=PROJECT_ID)
 
-    hello_world_query.to_csv('hello_world.csv')
-    af.add_existing_file('hello_world.csv')
-    # issue with af not removing files in current working directory
-    os.remove('hello_world.csv')
+def get_region_oa(af: AnalyticsFunction):
+    """
+    Collect OA percentages for Regions
+    """
+
+    query = load_sql_to_string('unesco_regions_oa.sql',
+                               parameters=dict(table=DOI_TABLE),
+                               directory=SQL_DIRECTORY)
+    region_oa = pd.read_gbq(query=query,
+                            project_id=PROJECT_ID)
+
+    query = load_sql_to_string('unesco_global_oa.sql',
+                               parameters=dict(table=DOI_TABLE),
+                               directory=SQL_DIRECTORY)
+    global_oa = pd.read_gbq(query=query,
+                            project_id=PROJECT_ID)
+
+    region_oa = region_oa.append(global_oa)
+    region_oa.sort_values(['region', 'published_year'], inplace=True)
+    region_oa.to_csv('region_oa.csv')
+
+
+def get_collaboration_oa(af: AnalyticsFunction):
+    """
+    OA percentages by inter-region Collaboration
+    """
+
+    query = load_sql_to_string('region_collaborations.sql',
+                               parameters=dict(table=DOI_TABLE),
+                               directory=SQL_DIRECTORY)
+    collab_oa = pd.read_gbq(query=query,
+                            project_id=PROJECT_ID)
+    collab_oa.to_csv('collab_oa.csv')
+
+
+def get_sdgs_oa(af: AnalyticsFunction):
+    """
+    OA by SDG Globally
+    """
+
+    query = load_sql_to_string('sdg_oa.sql',
+                               parameters=dict(table=DOI_TABLE),
+                               directory=SQL_DIRECTORY)
+    sdgs_oa = pd.read_gbq(query=query,
+                          project_id=PROJECT_ID)
+
+    sdgs = [sdg for sdg in sdgs_oa.columns if not sdg.endswith('_oa')]
+    for sdg in sdgs:
+        sdgs_oa[f'{sdg}_pc_oa'] = sdgs_oa[f'{sdg}_oa'] / sdgs_oa[sdg] * 100
+
+    sdgs_oa['pc_oa'] = sdgs_oa.is_oa / sdgs_oa.total_outputs * 100
+    sdgs_oa.to_csv('sdg_oa.csv')
