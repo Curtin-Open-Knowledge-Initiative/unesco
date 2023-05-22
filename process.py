@@ -23,11 +23,9 @@ from typing import Optional, Callable, Union
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
 
 from precipy.analytics_function import AnalyticsFunction
 
-from observatory.reports import report_utils
 from parameters import *
 from report_data_processing.sql import load_sql_to_string
 
@@ -133,8 +131,10 @@ def oa_global_graph(af: AnalyticsFunction):
                   color_discrete_map={PAIC[col]['printname']: PAIC[col]['color'] for col in cols},
                   groupnorm='percent',
                   labels=LABELS,
-                  range_y=[0, 100]
+                  range_y=[0, 100],
+                  template=TEMPLATE
                   )
+    fig.update_layout(font_family=FONT)
     fig.write_image('oa_global_paic.png')
 
     cols = ['publisher_only', 'both', 'other_platform_only', 'closed']
@@ -146,8 +146,10 @@ def oa_global_graph(af: AnalyticsFunction):
                   color_discrete_map={COKI[col]['printname']: COKI[col]['color'] for col in cols},
                   groupnorm='percent',
                   labels=LABELS,
-                  range_y=[0, 100]
+                  range_y=[0, 100],
+                  template=TEMPLATE
                   )
+    fig.update_layout(font_family=FONT)
     fig.write_image('oa_global_coki.png')
 
 
@@ -292,17 +294,45 @@ def sdg_graph(af: AnalyticsFunction):
     Graph OA by Sustainable Development Goal
     """
 
-    sdgs_oa = pd.read_csv('sdg_oa.csv')
+    sdgs_oa = pd.read_csv('sdg_oa_by_year.csv')
     region_oa = pd.read_csv('region_oa.csv')
 
-    sdg_totals = sdgs_oa.set_index('published_year').sum(axis=1)
+    sdgs_oa = sdgs_oa[sdgs_oa.published_year.isin(range(2012, 2022))]
+    sdg_totals = sdgs_oa.set_index('published_year').sum(axis=0)
 
     sdgs = [s for s in SDG_PARAMS.keys()]
     for sdg in sdgs:
-        sdg_totals[f'{sdg}_pc_oa'] = sdg_totals[f'{sdg}_oa'] / sdgs_oa[sdg] * 100
-    sdg_totals['pc_oa'] = sdg_totals.is_oa / sdg_totals.total_outputs * 100
+        sdg_totals[f'SDG-{sdg} {SDG_PARAMS[sdg]["title"]}'] = sdg_totals[f'sdg_{sdg}_oa'] / sdg_totals[
+            f'sdg_{sdg}'] * 100
+    sdg_totals['SDGs Overall'] = sdg_totals.any_sdg_oa / sdg_totals.any_sdg * 100
+    sdg_totals['Global Open Access'] = sdg_totals.is_oa / sdg_totals.total_outputs * 100
     sdg_totals.to_csv('sdg_oa_totals.csv', index=False)
     af.add_existing_file('sdg_oa_totals.csv')
+
+    items = [f'SDG-{sdg} {SDG_PARAMS[sdg]["title"]}' for sdg in sdgs]
+    items.extend(['SDGs Overall', 'Global Open Access'])
+    figdata = sdg_totals[items]
+    color_map = {
+        f'SDG-{sdg} {SDG_PARAMS[sdg]["title"]}': SDG_PARAMS[sdg]['hex_color'] for sdg in sdgs
+    }
+    color_map.update({
+        'SDGs Overall': 'black',
+        'Global Open Access': 'black'
+    })
+    fig = px.bar(data_frame=figdata,
+                 orientation='h',
+                 range_x=[0, 100],
+                 color=figdata.index,
+                 color_discrete_map=color_map,
+                 labels=dict(
+                     value="Proportion of Open Access (%)",
+                     index=""
+                 ),
+                 template=TEMPLATE)
+    fig.update_layout(
+        showlegend=False,
+        font_family="Myriad Pro")
+    fig.write_image('sdg_oa.png')
 
     figdata = sdgs_oa.merge(region_oa[region_oa.region == 'Global'][['published_year', 'percent_oa']],
                             on='published_year')

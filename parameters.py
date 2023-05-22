@@ -29,6 +29,9 @@ SQL_DIRECTORY = Path('report_data_processing/sql')
 
 # Graph Parameters
 
+TEMPLATE = 'simple_white'
+FONT = 'Myriad Pro'
+
 PAIC = dict(
     diamond=dict(
         printname='Diamond OA',
