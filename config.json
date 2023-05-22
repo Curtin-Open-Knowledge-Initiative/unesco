@@ -11,12 +11,11 @@
   },
   "analytics": [
     [
-      "get_region_oa",
+      "get_global_oa",
       {
       }
-    ],
-    [
-      "get_collaboration_oa",
+    ],[
+      "get_region_oa",
       {
       }
     ],
@@ -26,19 +25,13 @@
       }
     ],
     [
+      "oa_global_graph",
+      {
+        "depends": ["get_global_oa"]
+      }
+    ],
+    [
       "oa_regions_graph",
-      {
-        "depends": ["get_region_oa"]
-      }
-    ],
-    [
-      "collab_oa_graph",
-      {
-        "depends": ["get_collaboration_oa"]
-      }
-    ],
-    [
-      "oa_citations_graph",
       {
         "depends": ["get_region_oa"]
       }

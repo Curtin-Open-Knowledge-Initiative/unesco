@@ -34,6 +34,23 @@ from report_data_processing.sql import load_sql_to_string
 PROJECT_ID = 'coki-unesco'
 
 
+def get_global_oa(af: AnalyticsFunction):
+    """
+    Collect Global OA levels for PAIC and COKI OA categories
+    """
+
+    query = load_sql_to_string('global_oa.sql',
+                               parameters=dict(doi_table=DOI_TABLE,
+                                               start_year=START_YEAR,
+                                               end_year=END_YEAR),
+                               directory=SQL_DIRECTORY)
+    global_oa = pd.read_gbq(query=query,
+                            project_id=PROJECT_ID)
+
+    global_oa.to_csv('global_oa.csv', index=False)
+    af.add_existing_file('global_oa.csv')
+
+
 def get_region_oa(af: AnalyticsFunction):
     """
     Collect OA percentages for Regions
@@ -46,14 +63,14 @@ def get_region_oa(af: AnalyticsFunction):
     region_oa = pd.read_gbq(query=query,
                             project_id=PROJECT_ID)
 
-    # Global Query
-    query = load_sql_to_string('unesco_global_oa.sql',
-                               parameters=dict(table=DOI_TABLE),
-                               directory=SQL_DIRECTORY)
-    global_oa = pd.read_gbq(query=query,
-                            project_id=PROJECT_ID)
-
-    region_oa = region_oa.append(global_oa)
+    # # Global Query
+    # query = load_sql_to_string('unesco_global_oa.sql',
+    #                            parameters=dict(table=DOI_TABLE),
+    #                            directory=SQL_DIRECTORY)
+    # global_oa = pd.read_gbq(query=query,
+    #                         project_id=PROJECT_ID)
+    #
+    # region_oa = region_oa.append(global_oa)
     region_oa.sort_values(['region', 'published_year'], inplace=True)
     region_oa.to_csv('region_oa.csv', index=False)
     af.add_existing_file('region_oa.csv')
@@ -80,9 +97,10 @@ def get_sdgs_oa(af: AnalyticsFunction):
 
     """
 
-    # Testing
     query = load_sql_to_string('sdg_oa.sql',
-                               parameters=dict(table=DOI_TABLE),
+                               parameters=dict(table=DOI_TABLE,
+                                               start_year=START_YEAR,
+                                               end_year=END_YEAR),
                                directory=SQL_DIRECTORY)
     sdgs_oa = pd.read_gbq(query=query,
                           project_id=PROJECT_ID)
@@ -95,8 +113,42 @@ def get_sdgs_oa(af: AnalyticsFunction):
         sdgs_oa[f'{sdg}_pc_oa'] = sdgs_oa[f'{sdg}_oa'] / sdgs_oa[sdg] * 100
 
     sdgs_oa['pc_oa'] = sdgs_oa.is_oa / sdgs_oa.total_outputs * 100
-    sdgs_oa.to_csv('sdg_oa.csv', index=False)
-    af.add_existing_file('sdg_oa.csv')
+    sdgs_oa.to_csv('sdg_oa_by_year.csv', index=False)
+    af.add_existing_file('sdg_oa_by_year.csv')
+
+
+def oa_global_graph(af: AnalyticsFunction):
+    """
+    Graph OA globally by category and publication year
+    """
+
+    figdata = pd.read_csv('global_oa.csv')
+
+    cols = ['diamond', 'gold', 'hybrid', 'bronze', 'green', 'closed']
+    for col in cols:
+        figdata[PAIC[col]['printname']] = figdata[f'count_{col}']
+    fig = px.area(data_frame=figdata,
+                  x='published_year',
+                  y=[PAIC[col]['printname'] for col in cols],
+                  color_discrete_map={PAIC[col]['printname']: PAIC[col]['color'] for col in cols},
+                  groupnorm='percent',
+                  labels=LABELS,
+                  range_y=[0, 100]
+                  )
+    fig.write_image('oa_global_paic.png')
+
+    cols = ['publisher_only', 'both', 'other_platform_only', 'closed']
+    for col in cols:
+        figdata[COKI[col]['printname']] = figdata[f'count_{col}']
+    fig = px.area(data_frame=figdata,
+                  x='published_year',
+                  y=[COKI[col]['printname'] for col in cols],
+                  color_discrete_map={COKI[col]['printname']: COKI[col]['color'] for col in cols},
+                  groupnorm='percent',
+                  labels=LABELS,
+                  range_y=[0, 100]
+                  )
+    fig.write_image('oa_global_coki.png')
 
 
 def oa_regions_graph(af: AnalyticsFunction):
@@ -243,8 +295,17 @@ def sdg_graph(af: AnalyticsFunction):
     sdgs_oa = pd.read_csv('sdg_oa.csv')
     region_oa = pd.read_csv('region_oa.csv')
 
-    figdata = sdgs_oa.merge(region_oa[region_oa.region=='Global'][['published_year', 'percent_oa']],
-                           on='published_year')
+    sdg_totals = sdgs_oa.set_index('published_year').sum(axis=1)
+
+    sdgs = [s for s in SDG_PARAMS.keys()]
+    for sdg in sdgs:
+        sdg_totals[f'{sdg}_pc_oa'] = sdg_totals[f'{sdg}_oa'] / sdgs_oa[sdg] * 100
+    sdg_totals['pc_oa'] = sdg_totals.is_oa / sdg_totals.total_outputs * 100
+    sdg_totals.to_csv('sdg_oa_totals.csv', index=False)
+    af.add_existing_file('sdg_oa_totals.csv')
+
+    figdata = sdgs_oa.merge(region_oa[region_oa.region == 'Global'][['published_year', 'percent_oa']],
+                            on='published_year')
     figdata['SDG Outputs'] = figdata.any_sdg_pc_oa
     figdata['All Global Outputs'] = figdata.percent_oa
 

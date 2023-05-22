@@ -1,0 +1,89 @@
+{
+  "1": {
+    "short_name": "SDG1",
+    "title": "No Poverty",
+    "hex_color": "E5243B"
+  },
+  "2": {
+    "short_name": "SDG2",
+    "title": "Zero Hunger",
+    "hex_color": "DDA63A"
+  },
+  "3":
+          {
+    "short_name": "SDG3",
+    "title": "Good Health and Well-being",
+    "hex_color": "4C9F38"
+  },
+  "4":
+          {
+    "short_name": "SDG4",
+    "title": "Quality Education",
+    "hex_color": "C5192D"
+  },
+  "5": {
+    "short_name": "SDG5",
+    "title": "Gender Equality",
+    "hex_color": "FF3A21"
+  },
+  "6": {
+    "short_name": "SDG6",
+    "title": "Clean Water and Sanitation",
+    "hex_color": "26BDE2"
+  },
+  "7": {
+    "short_name": "SDG7",
+    "title": "Affordable and Clean Energy",
+    "hex_color": "FCC30B"
+  },
+  "8": {
+    "short_name": "SDG8",
+    "title": "Decent Work and Economic Growth",
+    "hex_color": "A21942"
+  },
+  "9": {
+    "short_name": "SDG9",
+    "title": "Industry, Innovation and Infrastructure",
+    "hex_color": "FD6925"
+  },
+  "10": {
+    "short_name": "SDG10",
+    "title": "Reduced Inequalities",
+    "hex_color": "DD1367"
+  },
+  "11": {
+    "short_name": "SDG11",
+    "title": "Sustainable Cities and Communities",
+    "hex_color": "FD9D24"
+  },
+  "12": {
+    "short_name": "SDG12",
+    "title": "Responsible Consumption and Production",
+    "hex_color": "BF8B2E"
+  },
+  "13": {
+    "short_name": "SDG13",
+    "title": "Climate Action",
+    "hex_color": "3F7E44"
+  },
+  "14": {
+    "short_name": "SDG14",
+    "title": "Life Below Water",
+    "hex_color": "0A97D9"
+  },
+  "15": {
+    "short_name": "SDG15",
+    "title": "Life On Land",
+    "hex_color": "56C02B"
+  },
+  "16": {
+    "short_name": "SDG16",
+    "title": "Peace, Justice and Strong Institutions",
+    "hex_color": "00689D"
+  },
+  "17": {
+    "short_name": "SDG17",
+    "title": "Partnerships for the Goals",
+    "hex_color": "19486A"
+  }
+}
