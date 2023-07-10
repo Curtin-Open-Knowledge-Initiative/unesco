@@ -6,7 +6,7 @@ from pathlib import Path
 import json
 
 # General Parameters
-START_YEAR = 2010
+START_YEAR = 2000
 END_YEAR = 2022 # Use range convention so this year is not included
 
 with open("sdgs.json") as f:
@@ -54,7 +54,7 @@ PAIC = dict(
         color='darkgreen'
     ),
     closed=dict(
-        printname='Closed',
+        printname='Not Open Access',
         color='lightgrey'
     )
 )

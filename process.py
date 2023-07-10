@@ -23,6 +23,8 @@ from typing import Optional, Callable, Union
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from precipy.analytics_function import AnalyticsFunction
 
@@ -56,36 +58,37 @@ def get_region_oa(af: AnalyticsFunction):
 
     # Regions Query
     query = load_sql_to_string('unesco_regions_oa.sql',
-                               parameters=dict(table=DOI_TABLE),
+                               parameters=dict(
+                                   doi_table=DOI_TABLE,
+                                   start_year=START_YEAR,
+                                   end_year=END_YEAR),
                                directory=SQL_DIRECTORY)
     region_oa = pd.read_gbq(query=query,
                             project_id=PROJECT_ID)
 
-    # # Global Query
-    # query = load_sql_to_string('unesco_global_oa.sql',
-    #                            parameters=dict(table=DOI_TABLE),
-    #                            directory=SQL_DIRECTORY)
-    # global_oa = pd.read_gbq(query=query,
-    #                         project_id=PROJECT_ID)
-    #
-    # region_oa = region_oa.append(global_oa)
-    region_oa.sort_values(['region', 'published_year'], inplace=True)
     region_oa.to_csv('region_oa.csv', index=False)
     af.add_existing_file('region_oa.csv')
 
 
-def get_collaboration_oa(af: AnalyticsFunction):
+def get_discipline_oa(af: AnalyticsFunction):
     """
-    OA percentages by inter-region Collaboration
+    Get COKI OA levels by discipline (OpenAlex Level0 Concepts)
     """
 
-    query = load_sql_to_string('region_collaborations.sql',
-                               parameters=dict(table=DOI_TABLE),
+    # Disciplines Query
+    print("Running disciplines query")
+
+    query = load_sql_to_string('discipline_oa.sql',
+                               parameters=dict(
+                                   doi_table=DOI_TABLE,
+                                   start_year=START_YEAR,
+                                   end_year=END_YEAR),
                                directory=SQL_DIRECTORY)
-    collab_oa = pd.read_gbq(query=query,
-                            project_id=PROJECT_ID)
-    collab_oa.to_csv('collab_oa.csv', index=False)
-    af.add_existing_file('collab_oa.csv')
+    discipline_oa = pd.read_gbq(query=query,
+                                project_id=PROJECT_ID)
+
+    discipline_oa.to_csv('discipline_oa.csv', index=False)
+    af.add_existing_file('discipline_oa.csv')
 
 
 def get_sdgs_oa(af: AnalyticsFunction):
@@ -159,134 +162,40 @@ def oa_regions_graph(af: AnalyticsFunction):
     """
 
     region_oa = pd.read_csv('region_oa.csv')
+    global_oa = pd.read_csv('global_oa.csv')
 
-    fig = px.line(data_frame=region_oa,
-                  x='published_year',
-                  y='percent_oa',
-                  color='region',
-                  labels=dict(
-                      published_year='Year of Publication',
-                      percent_oa='Open Access (%)',
-                      region='UNESCO Region'
-                  ))
-    fig.write_image('oa_regions.png')
-    af.add_existing_file('oa_regions.png', remove=True)
-    fig.write_html('oa_regions.html')
-    af.add_existing_file('oa_regions.html', remove=True)
+    region_oa = region_oa[region_oa.published_year.isin(range(2012, 2022))]
+    global_oa = global_oa[global_oa.published_year.isin(range(2012, 2022))]
+    global_totals = global_oa.sum()
+    region_oa.dropna(inplace=True)
+    region_totals = region_oa.groupby('region').sum()
+    region_totals.loc['Global OA'] = global_totals[[col for col in global_totals.index if col in region_totals.columns]]
+    categories = ['diamond', 'gold', 'hybrid', 'bronze']
+    for category in categories:
+        region_totals[f'pc_{category}'] = region_totals[f'count_{category}'] / region_totals.count_ao_total * 100
 
+    figdata = region_totals[[f'count_{category}' for category in categories]]
 
-def oa_citations_graph(af: AnalyticsFunction):
-    """
-    OA Advantage by Region
-    """
-
-    region_oa = pd.read_csv('region_oa.csv')
-    region_oa['Open Access'] = region_oa.avg_oa_citations_two_years
-    region_oa['Non-Open Access'] = region_oa.avg_noa_citations_two_years
-    regions = list(region_oa.region.unique())
-    regions.remove('Global')
-    dynamic_figure = px.bar(data_frame=region_oa[region_oa.published_year.isin(range(2010, 2019))],
-                            x='region',
-                            y=['Open Access', 'Non-Open Access'],
-                            barmode='group',
-                            animation_frame='published_year',
-                            animation_group='region',
-                            category_orders=dict(
-                                region=regions + ['Global'],
-                                variable=['Open Access', 'Non-Open Access']
-                            ),
-                            hover_name='region',
-                            hover_data=dict(
-                                published_year=True,
-                                region=False,
-                                variable=True,
-                                value=':.2f',
-                                total_outputs=':,',
-                                oa_outputs=':,'
-                            ),
-                            labels=dict(
-                                region='UNESCO Region',
-                                published_year='Year of Publication',
-                                value='Average Citation Count at Two Years',
-                                variable='Access Status'
-                            ))
-    dynamic_figure.write_html('citations_region.html')
-    af.add_existing_file('citations_region.html', remove=True)
-
-    static_figure = px.bar(data_frame=region_oa[region_oa.published_year == 2018],
-                           x='region',
-                           y=['Open Access', 'Non-Open Access'],
-                           barmode='group',
-                           category_orders=dict(
-                               region=regions + ['Global'],
-                               variable=['Open Access', 'Non-Open Access']
-                           ),
-                           hover_name='region',
-                           hover_data=dict(
-                               published_year=True,
-                               region=False,
-                               variable=True,
-                               value=':.2f',
-                               total_outputs=':,',
-                               oa_outputs=':,'
-                           ),
-                           labels=dict(
-                               region='UNESCO Region',
-                               published_year='Year of Publication',
-                               value='Average Citation Count at Two Years',
-                               variable='Access Status'
-                           ))
-    static_figure.write_image('citations_region_2018.png')
-    af.add_existing_file('citations_region_2018.png', remove=True)
-
-    static_figure = px.bar(data_frame=region_oa[region_oa.published_year.isin([2010, 2014, 2018])],
-                           x='region',
-                           y=['Open Access', 'Non-Open Access'],
-                           barmode='group',
-                           category_orders=dict(
-                               region=regions + ['Global'],
-                               variable=['Open Access', 'Non-Open Access']
-                           ),
-                           facet_row='published_year',
-                           hover_name='region',
-                           hover_data=dict(
-                               published_year=True,
-                               region=False,
-                               variable=True,
-                               value=':.2f',
-                               total_outputs=':,',
-                               oa_outputs=':,'
-                           ),
-                           labels=dict(
-                               region='UNESCO Region',
-                               published_year='Year of Publication',
-                               value='Average Citation Count at Two Years',
-                               variable='Access Status'
-                           ))
-    static_figure.write_image('citations_region_2010-14-18.png')
-    af.add_existing_file('citations_region_2010-14-18.png', remove=True)
-
-
-def collab_oa_graph(af: AnalyticsFunction):
-    """
-    Graph of OA levels as a function of regional collaboration
-    """
-
-    collab_oa = pd.read_csv('collab_oa.csv')
-
-    fig = px.line(data_frame=collab_oa,
-                  x='published_year',
-                  y='percent_oa',
-                  color='collab_regions',
-                  labels=dict(
-                      published_year='Year of Publication',
-                      percent_oa='Open Access (%)',
-                      collab_regions='Number of regions collaborating'
-                  ))
-    fig.write_image('collab_regions.png')
-    af.add_existing_file('collab_regions.png', remove=True)
-    fig.write_html('collab_regions.html')
-    af.add_existing_file('collab_regions.html', remove=True)
+    labels = [PAIC[category]['printname'] for category in categories]
+    marker_colors = [PAIC[category]['color'] for category in categories]
+    fig = make_subplots(2,
+                        4,
+                        specs=[
+                            [{'type': 'domain'}, {'type': 'domain'}, {'type': 'domain'}, {'type': 'domain'}],
+                            [{'type': 'domain'}, {'type': 'domain'}, {'type': 'domain'}, {'type': 'domain'}]
+                        ],
+                        subplot_titles=figdata.index)
+    for i, region in enumerate(figdata.index):
+        fig.add_trace(go.Pie(
+            labels=labels,
+            values=figdata.loc[region],
+            marker_colors=marker_colors),
+            1 if i < 4 else 2, i + 1 if i < 4 else i - 3)
+    fig.update_traces(hole=.4)
+    fig.update_layout(
+        font_family="Myriad Pro"
+    )
+    fig.write_image('regions_oa.png', width=800)
 
 
 def sdg_graph(af: AnalyticsFunction):
@@ -295,7 +204,6 @@ def sdg_graph(af: AnalyticsFunction):
     """
 
     sdgs_oa = pd.read_csv('sdg_oa_by_year.csv')
-    region_oa = pd.read_csv('region_oa.csv')
 
     sdgs_oa = sdgs_oa[sdgs_oa.published_year.isin(range(2012, 2022))]
     sdg_totals = sdgs_oa.set_index('published_year').sum(axis=0)
@@ -304,18 +212,20 @@ def sdg_graph(af: AnalyticsFunction):
     for sdg in sdgs:
         sdg_totals[f'SDG-{sdg} {SDG_PARAMS[sdg]["title"]}'] = sdg_totals[f'sdg_{sdg}_oa'] / sdg_totals[
             f'sdg_{sdg}'] * 100
+    sdg_totals[' '] = 0
     sdg_totals['SDGs Overall'] = sdg_totals.any_sdg_oa / sdg_totals.any_sdg * 100
     sdg_totals['Global Open Access'] = sdg_totals.is_oa / sdg_totals.total_outputs * 100
-    sdg_totals.to_csv('sdg_oa_totals.csv', index=False)
+    sdg_totals.to_csv('sdg_oa_totals.csv')
     af.add_existing_file('sdg_oa_totals.csv')
 
     items = [f'SDG-{sdg} {SDG_PARAMS[sdg]["title"]}' for sdg in sdgs]
-    items.extend(['SDGs Overall', 'Global Open Access'])
+    items.extend([' ', 'SDGs Overall', 'Global Open Access'])
     figdata = sdg_totals[items]
     color_map = {
         f'SDG-{sdg} {SDG_PARAMS[sdg]["title"]}': SDG_PARAMS[sdg]['hex_color'] for sdg in sdgs
     }
     color_map.update({
+        ' ': 'white',
         'SDGs Overall': 'black',
         'Global Open Access': 'black'
     })
@@ -324,59 +234,85 @@ def sdg_graph(af: AnalyticsFunction):
                  range_x=[0, 100],
                  color=figdata.index,
                  color_discrete_map=color_map,
+                 text_auto=True,
                  labels=dict(
-                     value="Proportion of Open Access (%)",
+                     value="Share of Open Access (%)",
                      index=""
                  ),
                  template=TEMPLATE)
+    fig.update_traces(
+        texttemplate="%{value:.3s}%",
+        textposition="outside"
+    )
+    fig.update_traces(
+        selector=dict(name=' '),
+        texttemplate=''
+    )
     fig.update_layout(
         showlegend=False,
         font_family="Myriad Pro")
     fig.write_image('sdg_oa.png')
 
-    figdata = sdgs_oa.merge(region_oa[region_oa.region == 'Global'][['published_year', 'percent_oa']],
-                            on='published_year')
-    figdata['SDG Outputs'] = figdata.any_sdg_pc_oa
-    figdata['All Global Outputs'] = figdata.percent_oa
 
-    fig = px.line(data_frame=figdata,
-                  x='published_year',
-                  y=['SDG Outputs', 'All Global Outputs'],
-                  range_y=[0, 100],
-                  labels=dict(
-                      published_year='Year of Publication',
-                      value='Open Access (%)',
-                      variable='Outputs Analysed'
-                  ))
-    fig.write_image('any_sdg.png')
-    af.add_existing_file('any_sdg.png', remove=True)
-    fig.write_html('any_sdg.html')
-    af.add_existing_file('any_sdg.html', remove=True)
+def discipline_graph(af: AnalyticsFunction):
+    discipline_oa = pd.read_csv('discipline_oa.csv')
+    discipline_oa = discipline_oa[discipline_oa.published_year.isin(range(2012, 2022))]
+    discipline_totals = discipline_oa.groupby('display_name').sum()
 
-    sdg_data = [s for s in sdgs_oa.columns if s.endswith('_pc_oa')]
-    cols = {sdg: f'SDG{sdg.replace("_", " ").title()[3:-5]}' for sdg in sdg_data}
-    cols.update(dict(
-        sdgs_ref_in_title_abs_pc_oa='Goals referred to in Title or Abstract',
-        any_sdg_pc_oa='All SDGs'
-    ))
-    for s, c in cols.items():
-        sdgs_oa[c] = sdgs_oa[s]
+    global_oa = pd.read_csv('global_oa.csv')
+    global_oa = global_oa[global_oa.published_year.isin(range(2012, 2022))]
+    global_totals = global_oa.sum()
 
-    fig = px.line(data_frame=sdgs_oa,
-                  x='published_year',
-                  y=[c for c in cols.values()],
-                  range_y=[0, 100],
-                  hover_name='variable',
-                  hover_data=dict(
-                      variable=False,
-                      value=':.2f'
-                  ),
-                  labels=dict(
-                      published_year='Year of Publication',
-                      value='Open Access (%)',
-                      variable='Sustainable Development Goal'
-                  ))
-    fig.write_image('sdgs_oa.png')
-    af.add_existing_file('sdgs_oa.png', remove=True)
-    fig.write_html('sdgs_oa.html')
-    af.add_existing_file('sdgs_oa.html', remove=True)
+    for oa_categories in [COKI, PAIC]:
+        for oa_class in oa_categories.keys():
+            discipline_totals[oa_categories[oa_class]['printname']] = discipline_totals[oa_class] / discipline_totals[
+                'total_outputs'] * 100
+            global_totals[oa_categories[oa_class]['printname']] = global_totals[f'count_{oa_class}'] / global_totals[
+                'count_ao_total'] * 100
+
+        figdata = discipline_totals[[oa_categories[oa_class]['printname'] for oa_class in oa_categories.keys()]]
+        figdata.loc['Global Open Access'] = global_totals[
+            [oa_categories[oa_class]['printname'] for oa_class in oa_categories.keys()]]
+
+        figdata['total_oa'] = np.round((100 - figdata["Not Open Access"]), 1)
+        figdata['total_oa_str'] = figdata.total_oa.apply(lambda x: str(x) + ' %')
+
+
+        color_map = {oa_categories[k]['printname']: oa_categories[k]['color'] for k in oa_categories.keys()}
+        fig = px.bar(figdata,
+                     x=[col for col in figdata.columns if col in [oa_categories[oa_class]['printname'] for oa_class in oa_categories.keys() if oa_class is not 'closed']],
+                     y=figdata.index,
+                     # orientation='h',
+                     range_x=[0, 100],
+
+                     color_discrete_map=color_map,
+                     # text='total_oa',
+                     labels=dict(
+                         value="Share of Open Access (%)",
+                         index=""
+                     ),
+                     template=TEMPLATE
+                     )
+        # fig.update_traces(
+        #     texttemplate="%{value:.3s}%",
+        #     textposition="outside"
+        # )
+
+        fig.add_trace(go.Scatter(
+            x=figdata.total_oa,
+            y=figdata.index,
+            text=figdata.total_oa_str,
+            mode='text',
+            textposition='middle right',
+            showlegend=False
+        ))
+        fig.update_yaxes(autorange="reversed",
+                         title="")
+        fig.update_layout(font_family="Myriad Pro",
+                          legend=dict(title='Mode of Open Access'))
+        if oa_categories == COKI:
+            catname = 'coki'
+        elif oa_categories == PAIC:
+            catname = 'paic'
+        fig.write_image(f'{catname}_discipline_oa.png')
+    pass

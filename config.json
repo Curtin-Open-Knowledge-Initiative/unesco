@@ -25,6 +25,11 @@
       }
     ],
     [
+      "get_discipline_oa",
+      {
+      }
+    ],
+    [
       "oa_global_graph",
       {
         "depends": ["get_global_oa"]
@@ -40,6 +45,12 @@
       "sdg_graph",
       {
         "depends": ["get_sdgs_oa"]
+      }
+    ],
+    [
+      "discipline_graph",
+      {
+        "depends": ["get_discipline_oa"]
       }
     ]
   ],
